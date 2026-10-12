@@ -1,0 +1,1 @@
+gcc ./src/server.c -o server.out -lzmq
