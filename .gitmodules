@@ -1,0 +1,3 @@
+[submodule "loraxhalow_sx1302_hal"]
+	path = loraxhalow_sx1302_hal
+	url = https://github.com/grayzing/loraxhalow_sx1302_hal.git
