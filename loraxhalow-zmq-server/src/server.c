@@ -1,9 +1,25 @@
 #include <zmq.h>
 #include <stdio.h>
 #include <signal.h>
+#include "parson.h"
 
 volatile sig_atomic_t keep_running = 1;
 void handle_signal(int sig) { (void)sig; keep_running = 0; }
+
+int is_pkt_json(const char *json_str)
+{
+    JSON_Value *root_val = json_parse_string(json_str);
+    if (root_val == NULL)
+    {
+        fprintf(stderr, "invalid JSON\n");
+        return 1;
+    }
+    JSON_Object *root = json_value_get_object(root_val);
+    JSON_Array *rxpk = json_object_get_array(root, "rxpk");
+    if (rxpk == NULL)
+        return 1; // not a packet so just stop here
+    return 0;
+}
 
 int main(void)
 {
@@ -27,8 +43,11 @@ int main(void)
             zmq_msg_close(&msg);
             continue;
         }
-        printf("%.*s\n", (int)zmq_msg_size(&msg), (char *)zmq_msg_data(&msg));
-        fflush(stdout);
+        if (is_pkt_json((char *)zmq_msg_data(&msg)) == 0)
+        {
+            printf("%.*s\n", (int)zmq_msg_size(&msg), (char *)zmq_msg_data(&msg));
+            fflush(stdout);
+        }
         zmq_msg_close(&msg);
     }
 

@@ -1,1 +1,1 @@
-gcc ./src/server.c -o server.out -lzmq
+gcc ./src/server.c ./src/parson.c -o server.out -lzmq
