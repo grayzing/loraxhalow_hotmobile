@@ -1,54 +1,38 @@
 #include <zmq.h>
-#include <string.h>
 #include <stdio.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <assert.h>
 #include <signal.h>
 
 volatile sig_atomic_t keep_running = 1;
+void handle_signal(int sig) { (void)sig; keep_running = 0; }
 
-void handle_signal(int sig)
+int main(void)
 {
-    keep_running = 0;
-}
-
-int main (void)
-{
-    struct sigaction sa;
+    struct sigaction sa = {0};
     sa.sa_handler = handle_signal;
     sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
+    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGTERM, &sa, NULL);
 
-    //  Socket to talk to clients
-    void *context = zmq_ctx_new ();
-    void *responder = zmq_socket (context, ZMQ_REP);
-    int rc = zmq_bind (responder, "ipc://*:5000");
-    assert (rc == 0);
+    void *context = zmq_ctx_new();
+    void *pull = zmq_socket(context, ZMQ_PULL);
+    if (zmq_bind(pull, "ipc:///tmp/loraxhalow.ipc") != 0) {
+        perror("zmq_bind");
+        return 1;
+    }
 
     while (keep_running) {
-        zmq_msg_t message;
-        zmq_msg_init(&message);
-
-        zmq_msg_recv(&message, &responder, 0);
-
-        size_t msg_size = zmq_msg_size(&message);
-        char *msg_data = zmq_msg_data(&message);
-
-        char *buffer = (char *)malloc(msg_size + 1);
-        if(buffer != NULL)
-        {
-            memcpy(buffer, msg_data, msg_size);
-            buffer[msg_size] = '\0';
-
-            for (int i = 0; i < msg_size; i++)
-                printf(buffer[i]);
-
-            free(buffer);
+        zmq_msg_t msg;
+        zmq_msg_init(&msg);
+        if (zmq_msg_recv(&msg, pull, 0) == -1) {   /* interrupted by signal or error */
+            zmq_msg_close(&msg);
+            continue;
         }
-        
-        //callbacks here
-        //zmq_send (responder, "World", 5, 0);
+        printf("%.*s\n", (int)zmq_msg_size(&msg), (char *)zmq_msg_data(&msg));
+        fflush(stdout);
+        zmq_msg_close(&msg);
     }
+
+    zmq_close(pull);
+    zmq_ctx_destroy(context);
     return 0;
 }
